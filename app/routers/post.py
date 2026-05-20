@@ -1,6 +1,7 @@
 import uuid
 
 from sqlalchemy import delete
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlmodel import select
@@ -10,6 +11,7 @@ from app.models.comment import Comment
 from app.models.images import Image
 from app.models.like import Like
 from app.models.post import Post
+from app.models.user import User
 from app.schemas.comments import CommentCreate, CommentRead
 from app.schemas.like import LikeCreate, LikeRead
 from app.schemas.post import PostCreate, PostRead, PostReadDetails, PostUpdate
@@ -46,11 +48,22 @@ async def get_post(post_id: uuid.UUID, session: AsyncSession = Depends(get_sessi
 
 
 @router.post("/", response_model=PostRead, status_code=201)
-async def create_ser(data: PostCreate, session: AsyncSession = Depends(get_session)):
+async def create_post(data: PostCreate, session: AsyncSession = Depends(get_session)):
+    existing_user = await session.get(User, data.user_id)
+    if not existing_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
     post = Post(**data.model_dump())
     session.add(post)
-    await session.commit()
-    await session.refresh(post)
+    try:
+        await session.commit()
+        await session.refresh(post)
+    except IntegrityError:
+        await session.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot create post: invalid user_id or bad post data",
+        )
     return post
 
 

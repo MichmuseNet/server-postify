@@ -11,6 +11,7 @@ from app.models.images import Image
 from app.models.like import Like
 from app.models.post import Post
 from app.models.user import User
+from app.schemas.post import PostRead
 from app.schemas.user import UserCreate, UserRead, UserUpdate
 
 
@@ -24,11 +25,44 @@ async def get_users(session: AsyncSession = Depends(get_session)):
 
 
 @router.get("/{user_id}", response_model=UserRead)
-async def get_user(user_id: uuid.UUID, session: AsyncSession = Depends(get_session)):
+async def get_user_by_id(user_id: uuid.UUID, session: AsyncSession = Depends(get_session)):
     user = await session.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return user
+
+
+@router.get("/{user_id}/posts", response_model=list[PostRead])
+async def get_user_posts(
+    user_id: uuid.UUID, session: AsyncSession = Depends(get_session)
+):
+    user = await session.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    result = await session.execute(select(Post).where(Post.user_id == user_id))
+    posts = result.scalars().all()
+
+    post_reads: list[PostRead] = []
+    for post in posts:
+        likes_result = await session.execute(
+            select(Like).where(Like.post_id == post.id)
+        )
+        comments_result = await session.execute(
+            select(Comment).where(Comment.post_id == post.id)
+        )
+        post_reads.append(
+            PostRead(
+                id=post.id,
+                user_id=post.user_id,
+                description=post.description,
+                created_at=post.created_at,
+                likes_count=len(likes_result.scalars().all()),
+                comments_count=len(comments_result.scalars().all()),
+            )
+        )
+
+    return post_reads
 
 
 @router.post("/", response_model=UserRead, status_code=201)
