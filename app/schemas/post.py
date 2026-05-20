@@ -1,15 +1,15 @@
 from datetime import datetime
-from typing import TYPE_CHECKING, List
 import uuid
 
-from sqlmodel import  SQLModel
+from sqlmodel import Field, SQLModel
 
-if TYPE_CHECKING: 
-    from app.schemas.like import LikeRead
-    from app.schemas.comment import CommentRead
+from app.schemas.comments import CommentRead
+from app.schemas.like import LikeRead
+
 class PostCreate(SQLModel):
     description: str
     user_id: uuid.UUID
+
 
 class PostRead(SQLModel):
     id: uuid.UUID
@@ -24,15 +24,10 @@ class PostReadDetails(SQLModel):
     user_id: uuid.UUID
     description: str
     created_at: datetime
-    likes_count: List['LikeRead'] = []
-    comments_count: List['CommentRead'] = []
+    likes: list[LikeRead] = Field(default_factory=list)
+    comments: list[CommentRead] = Field(default_factory=list)
 
 
 class PostUpdate(SQLModel):
     description: str | None = None
     user_id: uuid.UUID | None = None
-
-from app.schemas.like import LikeRead
-from app.schemas.comment import CommentRead
-
-PostReadDetails.model_rebuild()

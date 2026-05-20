@@ -2,8 +2,6 @@ from datetime import datetime
 import uuid
 from sqlmodel import Field, Relationship, SQLModel
 
-from app.models.post import Post
-
 
 class Image(SQLModel, table=True):
     __tablename__ = 'images'
