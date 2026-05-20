@@ -26,7 +26,7 @@ async def get_posts(session: AsyncSession = Depends(get_session)):
 
 
 @router.get("/{post_id}", response_model=PostReadDetails)
-async def get_post(post_id: uuid.UUID, session: AsyncSession = Depends(get_session)):
+async def get_post_by_id(post_id: uuid.UUID, session: AsyncSession = Depends(get_session)):
     post = await session.get(Post, post_id)
     if not post:
         raise HTTPException(status_code=404, detail="Post not found")
