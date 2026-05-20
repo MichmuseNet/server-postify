@@ -3,8 +3,9 @@ import uuid
 from sqlalchemy import delete
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
 from sqlmodel import select
+from typing import List
 
 from app.db.session import get_session
 from app.models.comment import Comment
@@ -15,6 +16,7 @@ from app.models.user import User
 from app.schemas.comments import CommentCreate, CommentRead
 from app.schemas.like import LikeCreate, LikeRead
 from app.schemas.post import PostCreate, PostRead, PostReadDetails, PostUpdate
+from app.services.cloudinary_service import cloudinary_service
 
 router = APIRouter(prefix="/posts", tags=["posts"])
 
@@ -48,16 +50,49 @@ async def get_post_by_id(post_id: uuid.UUID, session: AsyncSession = Depends(get
 
 
 @router.post("/", response_model=PostRead, status_code=201)
-async def create_post(data: PostCreate, session: AsyncSession = Depends(get_session)):
-    existing_user = await session.get(User, data.user_id)
+async def create_post(
+    user_id: str = Form(...), 
+    description: str = Form(...),
+    files: List[UploadFile]=File(default=[]), 
+    session: AsyncSession = Depends(get_session)):
+
+    existing_user = await session.get(User, user_id)
     if not existing_user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    post = Post(**data.model_dump())
+    post = Post(description=description, user_id=user_id)
     session.add(post)
+
     try:
         await session.commit()
         await session.refresh(post)
+
+        if files and files [0].filename:
+            for file in files:
+                cloud_res= await cloudinary_service.upload_image(
+                    file,
+                    folder=f"postify/posts/{post.id}"
+                )
+                image=Image(
+                    url=cloud_res["url"],
+                    publid_id=cloud_res['public_id'],
+                    post_id=post.id
+
+                )
+
+                session.add(image)
+                image.append()
+        await session.commit()
+
+        return PostRead(
+            id=post.id,
+            user_id=post.user_id,
+            description=post.description,
+            created_at=post.created_at,
+            likes_count=0,
+            comments_count=0
+        )
+
     except IntegrityError:
         await session.rollback()
         raise HTTPException(
